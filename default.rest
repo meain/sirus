@@ -12,5 +12,15 @@ Content-Type: application/json
 
 { "url": "https://domain.tld", "code": "domain" }
 
-# Visist entry
+# Visit entry
 GET :host/:code
+
+
+# Create new entry with predifined code and sub mode
+POST :host
+Content-Type: application/json
+
+{ "url": "https://domain.tld", "code": "domain", "mode": "sub" }
+
+# Visit entry with sub mode
+GET :host/g/check

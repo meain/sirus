@@ -7,9 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/lithammer/shortuuid"
 )
+
+// Example for sub mode
+// /g is set to redirect to https://github.com/meain
+// Now we can do :host/g/blog -> https://github.com/meain/blog
 
 // sqlite with datasette can probably provide visualisations
 type entry struct {
@@ -22,6 +27,7 @@ type entry struct {
 type createRequest struct {
 	Url  string `json:"url"`
 	Code string `json:"code"`
+	Mode string `json:"mode"`
 }
 
 var BASE_URL = "http://localhost:8088"
@@ -60,13 +66,20 @@ func bumpCount(code string) {
 	}
 }
 
-func genCode(url string, code string) (string, bool) {
-	if len(code) == 0 {
-		e, ok := getExisting(url)
-		if ok {
-			return e.code, true
-		}
+func genCode(url string, code string, mode string) (string, bool) {
+	if len(mode) == 0 {
+		mode = "exact"
+	}
 
+	e, ok := getExisting(url)
+	if ok {
+		if e.mode != mode {
+			return "", false
+		}
+		return e.code, true
+	}
+
+	if len(code) == 0 {
 		// we don't already have it, create new
 		u := shortuuid.New()[:7]
 		for {
@@ -78,11 +91,11 @@ func genCode(url string, code string) (string, bool) {
 				break
 			}
 		}
-		saveEntry(entry{url: url, code: u, mode: "exact", count: 0, scount: 1})
+		saveEntry(entry{url: url, code: u, mode: mode, count: 0, scount: 1})
 		return u, true
 	}
 
-	saveEntry(entry{url: url, code: code, mode: "exact", count: 0, scount: 1})
+	saveEntry(entry{url: url, code: code, mode: mode, count: 0, scount: 1})
 	return code, true
 }
 
@@ -101,7 +114,7 @@ func create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, ok := genCode(d.Url, d.Code)
+	code, ok := genCode(d.Url, d.Code, d.Mode)
 	if !ok {
 		http.Error(w, "Short url not available", http.StatusBadRequest)
 		return
@@ -110,19 +123,36 @@ func create(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, BASE_URL+"/"+code)
 }
 
+func getRedirectUrl(path string) (string, bool) {
+	splits := strings.SplitN(path, "/", 2)
+	code := splits[0]
+	entry, ok := db[code]
+	if !ok {
+		return "", false
+	}
+	switch len(splits) {
+	case 1:
+		return entry.url, true
+	case 2:
+		url := strings.Join([]string{entry.url, splits[1]}, "/")
+		return url, true
+	}
+	return "", false
+}
+
 func redirect(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Path[1:]
-	if len(code) == 0 {
+	path := r.URL.Path[1:]
+	if len(path) == 0 {
 		fmt.Fprint(w, "sirus ^)")
 		return
 	}
-	entry, ok := db[code]
+	url, ok := getRedirectUrl(path)
 	if ok {
-		fmt.Println("307:", code, "->", entry.url)
-		bumpCount(code)
-		http.Redirect(w, r, entry.url, http.StatusTemporaryRedirect)
+		fmt.Println("307:", path, "->", url)
+		bumpCount(path)
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	} else {
-		fmt.Println("404:", code)
+		fmt.Println("404:", path)
 		http.NotFound(w, r)
 	}
 }

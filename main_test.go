@@ -17,7 +17,28 @@ func cleanDb() {
 
 func TestGenShortcode(t *testing.T) {
 	cleanDb()
-	code, _ := genCode(url, "")
+	code, _ := genCode(url, "", "")
+	if len(code) == 0 {
+		t.Error("got empty shortcode")
+	}
+
+	if db[code].scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	}
+	if db[code].count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	}
+	if db[code].url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	}
+	if db[code].code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	}
+}
+
+func TestGenShortcodeSub(t *testing.T) {
+	cleanDb()
+	code, _ := genCode(url, "", "sub")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
 	}
@@ -38,7 +59,28 @@ func TestGenShortcode(t *testing.T) {
 
 func TestGenShortcodeCustom(t *testing.T) {
 	cleanDb()
-	code, _ := genCode(url, "domain")
+	code, _ := genCode(url, "domain", "")
+	if code != "domain" {
+		t.Error("got incorrect shortcode for custom")
+	}
+
+	if db[code].scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	}
+	if db[code].count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	}
+	if db[code].url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	}
+	if db[code].code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	}
+}
+
+func TestGenShortcodeCustomSub(t *testing.T) {
+	cleanDb()
+	code, _ := genCode(url, "domain", "sub")
 	if code != "domain" {
 		t.Error("got incorrect shortcode for custom")
 	}
@@ -61,12 +103,12 @@ func TestGenShortcodeDuplicate(t *testing.T) {
 	cleanDb()
 
 	url := "https://domain.tld"
-	code, _ := genCode(url, "")
+	code, _ := genCode(url, "", "")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
 	}
 
-	ncode, _ := genCode(url, "")
+	ncode, _ := genCode(url, "", "")
 	if code != ncode {
 		t.Error("got different codes on subsequent calls")
 	}
@@ -120,6 +162,37 @@ func TestCreateShortDuplicate(t *testing.T) {
 		t.Fatalf("short url not same; expected '%v', got '%v'", got, got2)
 	}
 }
+func TestCreateShortCustomDuplicate(t *testing.T) {
+	cleanDb()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+	got2 := response.Body.String()
+
+	if got != got2 {
+		t.Fatalf("short url not same; expected '%v', got '%v'", got, got2)
+	}
+}
+
+func TestCreateShortSubDuplicate(t *testing.T) {
+	cleanDb()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain", "mode": "sub"}`)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Result().StatusCode != http.StatusBadRequest {
+		t.Fatal("url recreated with sub mode and same code")
+	}
+}
 
 func TestRedirect(t *testing.T) {
 	cleanDb()
@@ -145,5 +218,32 @@ func TestRedirect(t *testing.T) {
 	}
 	if loc.String() != url {
 		t.Errorf("incorrect redirect location; expected '%v', got '%v'", url, loc.String())
+	}
+}
+
+func TestRedirectSub(t *testing.T) {
+	cleanDb()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "g", "mode": "sub"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	splits := strings.Split(got, "/")
+	code := splits[len(splits)-1]
+
+	request, _ = http.NewRequest(http.MethodGet, "/"+code+"/out", nil)
+	response = httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Code != http.StatusTemporaryRedirect {
+		t.Errorf("expected redirect, got '%v'", response.Code)
+	}
+
+	loc, err := response.Result().Location()
+	if err != nil {
+		t.Fatal("no redirect location provided")
+	}
+	if loc.String() != url+"/out" {
+		t.Errorf("incorrect redirect location; expected '%v', got '%v'", url+"/out", loc.String())
 	}
 }
