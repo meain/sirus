@@ -88,6 +88,10 @@ func load() {
 		return
 	}
 	json.Unmarshal(data, &db)
+
+	for k, v := range db {
+		rmap[v.Url] = k
+	}
 	log.Printf("Loaded db with %v items\n", len(db))
 }
 func persist() {
@@ -104,15 +108,15 @@ func genCode(url string, code string, mode string) (string, bool) {
 		mode = "exact"
 	}
 
-	e, ok := getExisting(url)
-	if ok {
-		if e.Mode != mode {
-			return "", false
-		}
-		return e.Code, true
-	}
-
 	if len(code) == 0 {
+		e, ok := getExisting(url)
+		if ok {
+			if e.Mode != mode {
+				return "Already mapped to another item", false
+			}
+			return e.Code, true
+		}
+
 		// we don't already have it, create new
 		u := shortuuid.New()[:7]
 		for {
@@ -128,6 +132,14 @@ func genCode(url string, code string, mode string) (string, bool) {
 		return u, true
 	}
 
+	e, ok := db[code]
+	if ok {
+		// custom code already used
+		if e.Url == url && e.Mode == mode {
+			return code, true
+		}
+		return "Already mapped to another item", false
+	}
 	saveEntry(entry{Url: url, Code: code, Mode: mode, Count: 0, Scount: 1})
 	return code, true
 }
@@ -149,7 +161,7 @@ func create(w http.ResponseWriter, r *http.Request) {
 
 	code, ok := genCode(d.Url, d.Code, d.Mode)
 	if !ok {
-		http.Error(w, "Short url not available", http.StatusBadRequest)
+		http.Error(w, code, http.StatusBadRequest)
 		return
 	}
 	log.Println("000:", d.Url, "->", code)

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -191,6 +193,69 @@ func TestCreateShortDuplicate(t *testing.T) {
 		t.Fatalf("short url not same; expected '%v', got '%v'", got, got2)
 	}
 }
+
+func TestCreateShortNormalCustomDuplicate(t *testing.T) {
+	setup()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	if !strings.Contains(got, BASE_URL) {
+		t.Fatalf("%v not found in response", BASE_URL)
+	}
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+	got2 := response.Body.String()
+
+	if got2 != BASE_URL+"/domain" {
+		t.Errorf("custom short domain expected, got '%v'", got2)
+	}
+}
+
+func TestCreateShortMultipleCustomDuplicate(t *testing.T) {
+	setup()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain1"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	if got != BASE_URL+"/domain1" {
+		t.Errorf("custom short domain expected, got '%v'", got)
+	}
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain2"}`)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+	got = response.Body.String()
+
+	if got != BASE_URL+"/domain2" {
+		t.Errorf("custom short domain expected, got '%v'", got)
+	}
+}
+
+func TestCreateShortMultipleUrlSingleCustom(t *testing.T) {
+	setup()
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	if got != BASE_URL+"/domain" {
+		t.Errorf("custom short domain expected, got '%v'", got)
+	}
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`2", "code": "domain"}`)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+
+	if response.Result().StatusCode != http.StatusBadRequest {
+		t.Fatal("url recreated with sub mode and same code")
+	}
+}
+
 func TestCreateShortCustomDuplicate(t *testing.T) {
 	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
@@ -274,5 +339,29 @@ func TestRedirectSub(t *testing.T) {
 	}
 	if loc.String() != url+"/out" {
 		t.Errorf("incorrect redirect location; expected '%v', got '%v'", url+"/out", loc.String())
+	}
+}
+
+func TestFileLoad(t *testing.T) {
+	setup()
+	dbs, _ := json.Marshal(map[string]entry{"domain": {Url: url, Code: "domain", Mode: "exact", Count: 0, Scount: 1}})
+	ioutil.WriteFile(DATA_FILE, dbs, 0644)
+	load()
+
+	if len(db) != 1 {
+		t.Fatalf("incorrect number of entries loaded; expected '%v', got '%v'", 1, len(db))
+	}
+	if db["domain"].Url != url {
+		t.Errorf("incorrect url loaded; expected '%v', got '%v'", url, db["domain"].Url)
+	}
+	if db["domain"].Code != "domain" {
+		t.Errorf("incorrect code loaded; expected '%v', got '%v'", "domain", db["domain"].Code)
+	}
+
+	if len(rmap) != 1 {
+		t.Fatalf("incorrect number of entries loaded to rmap; expecte '%v', got '%v'", 1, len(rmap))
+	}
+	if rmap[url] != "domain" {
+		t.Errorf("invalid rmap entry for domain, %v", rmap[url])
 	}
 }
