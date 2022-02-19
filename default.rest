@@ -1,0 +1,10 @@
+:host = http://localhost:8088
+
+# Create new entry
+POST :host
+Content-Type: application/json
+
+{ "url": "https://meain.io" }
+
+# Visist entry
+GET :host/:code

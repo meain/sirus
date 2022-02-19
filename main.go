@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -11,54 +13,116 @@ import (
 
 // sqlite with datasette can probably provide visualisations
 type entry struct {
-	url       string
-	shortcode string
-	mode      string // exact/sub
-	count     int
+	url    string
+	code   string
+	mode   string // exact/sub
+	count  int    // number of times we redirected
+	scount int    // no of times we shortened
+}
+type createRequest struct {
+	Url string `json:"url"`
 }
 
-var db []entry
+var BASE_URL = "http://localhost:8088"
+var db = make(map[string]entry)    // shortcode to full info
+var rmap = make(map[string]string) // reverse map from url to shortcode
 
-func addEntry(url, shortcode, mode string) {}
-func updateCounter(shortcode string)       {}
+// separate func so that we can abstract to sqlite
+func saveEntry(e entry) {
+	db[e.code] = e
+	rmap[e.url] = e.code
+}
+func getExisting(url string) (entry, bool) {
+	code, ok := rmap[url]
+	if ok {
+		e, ok := db[code]
+		if ok {
+			bumpScount(code)
+			return e, true
+		}
+		fmt.Printf("rmap available for '%v' but no db entry, ignoring rmap\n", url)
+	}
+	return entry{}, false
+}
+func bumpScount(code string) {
+	e, ok := db[code]
+	if ok {
+		e.scount += 1
+		db[code] = e
+	}
+}
+func bumpCount(code string) {
+	e, ok := db[code]
+	if ok {
+		e.count += 1
+		db[code] = e
+	}
+}
 
-func getShortcode() string {
-	u := shortuuid.New()[:5]
-	// TODO: check if we already have that id
+func genCode(url string) string {
+	e, ok := getExisting(url)
+	if ok {
+		return e.code
+	}
+
+	// we don't already have it, create new
+	u := shortuuid.New()[:7]
+	for {
+		_, ok := db[u]
+		if ok {
+			// shorturl already used, create new
+			u = shortuuid.New()[:5]
+		} else {
+			break
+		}
+	}
+	saveEntry(entry{url: url, code: u, mode: "exact", count: 0, scount: 1})
 	return u
 }
 
-func findEntry(shortcode string) (string, bool) {
-	for _, val := range db {
-		if val.shortcode == shortcode {
-			return val.url, true
-		}
+func create(w http.ResponseWriter, r *http.Request) {
+	p, err := ioutil.ReadAll(r.Body)
+
+	if err != nil {
+		http.Error(w, "Unable to read body", http.StatusBadRequest)
 	}
-	return "", false
+
+	var d createRequest
+	err = json.Unmarshal(p, &d)
+	if err != nil {
+		http.Error(w, "Unable to get url", http.StatusBadRequest)
+	}
+
+	code := genCode(d.Url)
+	fmt.Println("000:", d.Url, "->", code)
+	fmt.Fprint(w, BASE_URL+"/"+code)
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method is not supported", http.StatusNotFound)
-		return
-	}
-	url := r.URL.Path
-	fullurl, found := findEntry(url[1:])
-	if found {
-		fmt.Println("307:", url[1:], "->", fullurl)
-		http.Redirect(w, r, fullurl, 307)
+func redirect(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Path[1:]
+	entry, ok := db[code]
+	if ok {
+		fmt.Println("307:", code, "->", entry.url)
+		bumpCount(code)
+		http.Redirect(w, r, entry.url, http.StatusTemporaryRedirect)
 	} else {
-		fmt.Println("404:", url[1:])
+		fmt.Println("404:", code)
 		http.NotFound(w, r)
 	}
 }
 
-func main() {
-	fmt.Println("howdy!")
-	fmt.Println(db)
-	fmt.Println(getShortcode())
-	db = append(db, entry{url: "https://meain.io", shortcode: "meain"})
+func handler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		create(w, r)
+	case "GET":
+		redirect(w, r)
+	default:
+		http.Error(w, "Method is not supported", http.StatusMethodNotAllowed)
+	}
+}
 
+func main() {
 	http.HandleFunc("/", handler)
 	port := os.Getenv("PORT")
 	if port == "" {
