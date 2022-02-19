@@ -17,9 +17,30 @@ func cleanDb() {
 
 func TestGenShortcode(t *testing.T) {
 	cleanDb()
-	code := genCode(url)
+	code, _ := genCode(url, "")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
+	}
+
+	if db[code].scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	}
+	if db[code].count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	}
+	if db[code].url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	}
+	if db[code].code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	}
+}
+
+func TestGenShortcodeCustom(t *testing.T) {
+	cleanDb()
+	code, _ := genCode(url, "domain")
+	if code != "domain" {
+		t.Error("got incorrect shortcode for custom")
 	}
 
 	if db[code].scount != 1 {
@@ -40,12 +61,12 @@ func TestGenShortcodeDuplicate(t *testing.T) {
 	cleanDb()
 
 	url := "https://domain.tld"
-	code := genCode(url)
+	code, _ := genCode(url, "")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
 	}
 
-	ncode := genCode(url)
+	ncode, _ := genCode(url, "")
 	if code != ncode {
 		t.Error("got different codes on subsequent calls")
 	}

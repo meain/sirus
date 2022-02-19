@@ -20,7 +20,8 @@ type entry struct {
 	scount int    // no of times we shortened
 }
 type createRequest struct {
-	Url string `json:"url"`
+	Url  string `json:"url"`
+	Code string `json:"code"`
 }
 
 var BASE_URL = "http://localhost:8088"
@@ -59,25 +60,30 @@ func bumpCount(code string) {
 	}
 }
 
-func genCode(url string) string {
-	e, ok := getExisting(url)
-	if ok {
-		return e.code
+func genCode(url string, code string) (string, bool) {
+	if len(code) == 0 {
+		e, ok := getExisting(url)
+		if ok {
+			return e.code, true
+		}
+
+		// we don't already have it, create new
+		u := shortuuid.New()[:7]
+		for {
+			_, ok := db[u]
+			if ok {
+				// shorturl already used, create new
+				u = shortuuid.New()[:5]
+			} else {
+				break
+			}
+		}
+		saveEntry(entry{url: url, code: u, mode: "exact", count: 0, scount: 1})
+		return u, true
 	}
 
-	// we don't already have it, create new
-	u := shortuuid.New()[:7]
-	for {
-		_, ok := db[u]
-		if ok {
-			// shorturl already used, create new
-			u = shortuuid.New()[:5]
-		} else {
-			break
-		}
-	}
-	saveEntry(entry{url: url, code: u, mode: "exact", count: 0, scount: 1})
-	return u
+	saveEntry(entry{url: url, code: code, mode: "exact", count: 0, scount: 1})
+	return code, true
 }
 
 func create(w http.ResponseWriter, r *http.Request) {
@@ -85,15 +91,21 @@ func create(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		http.Error(w, "Unable to read body", http.StatusBadRequest)
+		return
 	}
 
 	var d createRequest
 	err = json.Unmarshal(p, &d)
 	if err != nil {
 		http.Error(w, "Unable to get url", http.StatusBadRequest)
+		return
 	}
 
-	code := genCode(d.Url)
+	code, ok := genCode(d.Url, d.Code)
+	if !ok {
+		http.Error(w, "Short url not available", http.StatusBadRequest)
+		return
+	}
 	fmt.Println("000:", d.Url, "->", code)
 	fmt.Fprint(w, BASE_URL+"/"+code)
 }
