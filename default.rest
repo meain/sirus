@@ -4,7 +4,7 @@
 POST :host
 Content-Type: application/json
 
-{ "url": "https://meain.io" }
+{ "url": "https://domain.tld" }
 
 # Visist entry
 GET :host/:code

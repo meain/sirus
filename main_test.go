@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var url = "https://meain.io"
+var url = "https://domain.tld"
 
 func cleanDb() {
 	db = make(map[string]entry)
@@ -62,7 +62,7 @@ func TestSimpleGet(t *testing.T) {
 	handler(response, request)
 	got := response.Body.String()
 
-	if got != "meain" {
+	if got != "sirus ^)" {
 		t.Fatal("Did not get response back from server")
 	}
 }
