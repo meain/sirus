@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,13 +11,15 @@ import (
 
 var url = "https://domain.tld"
 
-func cleanDb() {
+func setup() {
+	user = ""
+	pass = ""
 	db = make(map[string]entry)
 	rmap = make(map[string]string)
 }
 
 func TestGenShortcode(t *testing.T) {
-	cleanDb()
+	setup()
 	code, _ := genCode(url, "", "")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
@@ -37,7 +40,7 @@ func TestGenShortcode(t *testing.T) {
 }
 
 func TestGenShortcodeSub(t *testing.T) {
-	cleanDb()
+	setup()
 	code, _ := genCode(url, "", "sub")
 	if len(code) == 0 {
 		t.Error("got empty shortcode")
@@ -58,7 +61,7 @@ func TestGenShortcodeSub(t *testing.T) {
 }
 
 func TestGenShortcodeCustom(t *testing.T) {
-	cleanDb()
+	setup()
 	code, _ := genCode(url, "domain", "")
 	if code != "domain" {
 		t.Error("got incorrect shortcode for custom")
@@ -79,7 +82,7 @@ func TestGenShortcodeCustom(t *testing.T) {
 }
 
 func TestGenShortcodeCustomSub(t *testing.T) {
-	cleanDb()
+	setup()
 	code, _ := genCode(url, "domain", "sub")
 	if code != "domain" {
 		t.Error("got incorrect shortcode for custom")
@@ -100,7 +103,7 @@ func TestGenShortcodeCustomSub(t *testing.T) {
 }
 
 func TestGenShortcodeDuplicate(t *testing.T) {
-	cleanDb()
+	setup()
 
 	url := "https://domain.tld"
 	code, _ := genCode(url, "", "")
@@ -119,7 +122,7 @@ func TestGenShortcodeDuplicate(t *testing.T) {
 }
 
 func TestSimpleGet(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -131,7 +134,7 @@ func TestSimpleGet(t *testing.T) {
 }
 
 func TestCreateShort(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -142,8 +145,30 @@ func TestCreateShort(t *testing.T) {
 	}
 }
 
+func TestCreateShortAuthenticated(t *testing.T) {
+	setup()
+	user = "user"
+	pass = "pass"
+	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
+	response := httptest.NewRecorder()
+	handler(response, request)
+	if response.Result().StatusCode != http.StatusUnauthorized {
+		t.Error("unautorized request allow to create shortened url")
+	}
+
+	request, _ = http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
+	request.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(user+":"+pass)))
+	response = httptest.NewRecorder()
+	handler(response, request)
+	got := response.Body.String()
+
+	if !strings.Contains(got, BASE_URL) {
+		t.Fatalf("%v not found in response", BASE_URL)
+	}
+}
+
 func TestCreateShortDuplicate(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -163,7 +188,7 @@ func TestCreateShortDuplicate(t *testing.T) {
 	}
 }
 func TestCreateShortCustomDuplicate(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -180,7 +205,7 @@ func TestCreateShortCustomDuplicate(t *testing.T) {
 }
 
 func TestCreateShortSubDuplicate(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "domain"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -195,7 +220,7 @@ func TestCreateShortSubDuplicate(t *testing.T) {
 }
 
 func TestRedirect(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -222,7 +247,7 @@ func TestRedirect(t *testing.T) {
 }
 
 func TestRedirectSub(t *testing.T) {
-	cleanDb()
+	setup()
 	request, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"url":"`+url+`", "code": "g", "mode": "sub"}`)))
 	response := httptest.NewRecorder()
 	handler(response, request)

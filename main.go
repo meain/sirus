@@ -31,6 +31,9 @@ type createRequest struct {
 }
 
 var BASE_URL = "http://localhost:8088"
+var port = os.Getenv("SIRUS_PORT")
+var pass = os.Getenv("SIRUS_PASS")
+var user = os.Getenv("SIRUS_USER")
 var db = make(map[string]entry)    // shortcode to full info
 var rmap = make(map[string]string) // reverse map from url to shortcode
 
@@ -158,6 +161,19 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	if pass != "" {
+		u, p, ok := r.BasicAuth()
+		if !ok {
+			fmt.Println("Error parsing basic auth")
+			w.WriteHeader(401)
+			return
+		}
+		if u != user && p != pass {
+			fmt.Printf("Invalid username/password for %s", u)
+			w.WriteHeader(401)
+			return
+		}
+	}
 	switch r.Method {
 	case "POST":
 		create(w, r)
@@ -170,7 +186,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", handler)
-	port := os.Getenv("PORT")
 	if port == "" {
 		port = ":8088"
 	} else {
