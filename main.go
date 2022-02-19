@@ -31,8 +31,8 @@ type createRequest struct {
 	Mode string `json:"mode"`
 }
 
-var DATA_FILE = "data.json"
-var BASE_URL = "http://localhost:8088"
+var DATA_FILE = os.Getenv("SIRUS_DATA_FILE")
+var BASE_URL = os.Getenv("SIRUS_BASE_URL")
 var port = os.Getenv("SIRUS_PORT")
 var pass = os.Getenv("SIRUS_PASS")
 var user = os.Getenv("SIRUS_USER")
@@ -216,6 +216,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	http.HandleFunc("/", handler)
+	if DATA_FILE == "" {
+		DATA_FILE = "data.json"
+	}
+	if BASE_URL == "" {
+		BASE_URL = "http://localhost:8088"
+	}
 	if port == "" {
 		port = ":8088"
 	} else {
