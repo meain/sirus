@@ -100,6 +100,10 @@ func create(w http.ResponseWriter, r *http.Request) {
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Path[1:]
+	if len(code) == 0 {
+		fmt.Fprint(w, "meain")
+		return
+	}
 	entry, ok := db[code]
 	if ok {
 		fmt.Println("307:", code, "->", entry.url)
