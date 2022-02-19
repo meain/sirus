@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,11 +19,11 @@ import (
 
 // sqlite with datasette can probably provide visualisations
 type entry struct {
-	url    string
-	code   string
-	mode   string // exact/sub
-	count  int    // number of times we redirected
-	scount int    // no of times we shortened
+	Url    string
+	Code   string
+	Mode   string // exact/sub
+	Count  int    // number of times we redirected
+	Scount int    // no of times we shortened
 }
 type createRequest struct {
 	Url  string `json:"url"`
@@ -30,6 +31,7 @@ type createRequest struct {
 	Mode string `json:"mode"`
 }
 
+var DATA_FILE = "data.json"
 var BASE_URL = "http://localhost:8088"
 var port = os.Getenv("SIRUS_PORT")
 var pass = os.Getenv("SIRUS_PASS")
@@ -39,8 +41,9 @@ var rmap = make(map[string]string) // reverse map from url to shortcode
 
 // separate func so that we can abstract to sqlite
 func saveEntry(e entry) {
-	db[e.code] = e
-	rmap[e.url] = e.code
+	db[e.Code] = e
+	rmap[e.Url] = e.Code
+	persist()
 }
 func getExisting(url string) (entry, bool) {
 	code, ok := rmap[url]
@@ -50,23 +53,50 @@ func getExisting(url string) (entry, bool) {
 			bumpScount(code)
 			return e, true
 		}
-		fmt.Printf("rmap available for '%v' but no db entry, ignoring rmap\n", url)
+		log.Printf("rmap available for '%v' but no db entry, ignoring rmap\n", url)
 	}
 	return entry{}, false
 }
 func bumpScount(code string) {
 	e, ok := db[code]
 	if ok {
-		e.scount += 1
+		e.Scount += 1
 		db[code] = e
 	}
+	persist()
 }
 func bumpCount(code string) {
 	e, ok := db[code]
 	if ok {
-		e.count += 1
+		e.Count += 1
 		db[code] = e
 	}
+	persist()
+}
+
+func load() {
+	data, err := ioutil.ReadFile(DATA_FILE)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Println("no previous data available")
+		return
+	}
+	if err != nil {
+		panic("unable to read file")
+	}
+	if len(data) == 0 {
+		log.Println("No data available")
+		return
+	}
+	json.Unmarshal(data, &db)
+	log.Printf("Loaded db with %v items\n", len(db))
+}
+func persist() {
+	// not expecting to have huge volume as of now
+	dbs, err := json.Marshal(db)
+	if err != nil {
+		panic("unable to write to file")
+	}
+	ioutil.WriteFile(DATA_FILE, dbs, 0644)
 }
 
 func genCode(url string, code string, mode string) (string, bool) {
@@ -76,10 +106,10 @@ func genCode(url string, code string, mode string) (string, bool) {
 
 	e, ok := getExisting(url)
 	if ok {
-		if e.mode != mode {
+		if e.Mode != mode {
 			return "", false
 		}
-		return e.code, true
+		return e.Code, true
 	}
 
 	if len(code) == 0 {
@@ -94,11 +124,11 @@ func genCode(url string, code string, mode string) (string, bool) {
 				break
 			}
 		}
-		saveEntry(entry{url: url, code: u, mode: mode, count: 0, scount: 1})
+		saveEntry(entry{Url: url, Code: u, Mode: mode, Count: 0, Scount: 1})
 		return u, true
 	}
 
-	saveEntry(entry{url: url, code: code, mode: mode, count: 0, scount: 1})
+	saveEntry(entry{Url: url, Code: code, Mode: mode, Count: 0, Scount: 1})
 	return code, true
 }
 
@@ -122,7 +152,7 @@ func create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Short url not available", http.StatusBadRequest)
 		return
 	}
-	fmt.Println("000:", d.Url, "->", code)
+	log.Println("000:", d.Url, "->", code)
 	fmt.Fprint(w, BASE_URL+"/"+code)
 }
 
@@ -135,9 +165,9 @@ func getRedirectUrl(path string) (string, bool) {
 	}
 	switch len(splits) {
 	case 1:
-		return entry.url, true
+		return entry.Url, true
 	case 2:
-		url := strings.Join([]string{entry.url, splits[1]}, "/")
+		url := strings.Join([]string{entry.Url, splits[1]}, "/")
 		return url, true
 	}
 	return "", false
@@ -151,11 +181,11 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	}
 	url, ok := getRedirectUrl(path)
 	if ok {
-		fmt.Println("307:", path, "->", url)
+		log.Println("307:", path, "->", url)
 		bumpCount(path)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	} else {
-		fmt.Println("404:", path)
+		log.Println("404:", path)
 		http.NotFound(w, r)
 	}
 }
@@ -164,12 +194,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	if pass != "" {
 		u, p, ok := r.BasicAuth()
 		if !ok {
-			fmt.Println("Error parsing basic auth")
+			log.Println("Error parsing basic auth")
 			w.WriteHeader(401)
 			return
 		}
 		if u != user && p != pass {
-			fmt.Printf("Invalid username/password for %s", u)
+			log.Printf("Invalid username/password for %s", u)
 			w.WriteHeader(401)
 			return
 		}
@@ -191,7 +221,8 @@ func main() {
 	} else {
 		port = ":" + port
 	}
-	fmt.Println("Starting server on", port)
+	load()
+	log.Println("Starting server on", port)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		log.Fatal(err)

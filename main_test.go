@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 var url = "https://domain.tld"
@@ -14,6 +16,8 @@ var url = "https://domain.tld"
 func setup() {
 	user = ""
 	pass = ""
+	u, _ := uuid.NewUUID()
+	DATA_FILE = "/tmp/sirus-test-" + u.String()
 	db = make(map[string]entry)
 	rmap = make(map[string]string)
 }
@@ -25,17 +29,17 @@ func TestGenShortcode(t *testing.T) {
 		t.Error("got empty shortcode")
 	}
 
-	if db[code].scount != 1 {
-		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	if db[code].Scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].Scount)
 	}
-	if db[code].count != 0 {
-		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	if db[code].Count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].Count)
 	}
-	if db[code].url != url {
-		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	if db[code].Url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].Url)
 	}
-	if db[code].code != code {
-		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	if db[code].Code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].Code)
 	}
 }
 
@@ -46,17 +50,17 @@ func TestGenShortcodeSub(t *testing.T) {
 		t.Error("got empty shortcode")
 	}
 
-	if db[code].scount != 1 {
-		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	if db[code].Scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].Scount)
 	}
-	if db[code].count != 0 {
-		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	if db[code].Count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].Count)
 	}
-	if db[code].url != url {
-		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	if db[code].Url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].Url)
 	}
-	if db[code].code != code {
-		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	if db[code].Code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].Code)
 	}
 }
 
@@ -67,17 +71,17 @@ func TestGenShortcodeCustom(t *testing.T) {
 		t.Error("got incorrect shortcode for custom")
 	}
 
-	if db[code].scount != 1 {
-		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	if db[code].Scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].Scount)
 	}
-	if db[code].count != 0 {
-		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	if db[code].Count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].Count)
 	}
-	if db[code].url != url {
-		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	if db[code].Url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].Url)
 	}
-	if db[code].code != code {
-		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	if db[code].Code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].Code)
 	}
 }
 
@@ -88,17 +92,17 @@ func TestGenShortcodeCustomSub(t *testing.T) {
 		t.Error("got incorrect shortcode for custom")
 	}
 
-	if db[code].scount != 1 {
-		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].scount)
+	if db[code].Scount != 1 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 1, db[code].Scount)
 	}
-	if db[code].count != 0 {
-		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].count)
+	if db[code].Count != 0 {
+		t.Errorf("invalid count; expected '%v', got '%v'", 0, db[code].Count)
 	}
-	if db[code].url != url {
-		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].url)
+	if db[code].Url != url {
+		t.Errorf("invalid url; expected '%v', got '%v'", url, db[code].Url)
 	}
-	if db[code].code != code {
-		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].code)
+	if db[code].Code != code {
+		t.Errorf("invalid code; expected '%v', got '%v'", code, db[code].Code)
 	}
 }
 
@@ -116,8 +120,8 @@ func TestGenShortcodeDuplicate(t *testing.T) {
 		t.Error("got different codes on subsequent calls")
 	}
 
-	if db[code].scount != 2 {
-		t.Errorf("invalid scount; expected '%v', got '%v'", 2, db[code].scount)
+	if db[code].Scount != 2 {
+		t.Errorf("invalid scount; expected '%v', got '%v'", 2, db[code].Scount)
 	}
 }
 
