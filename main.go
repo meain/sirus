@@ -203,21 +203,21 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	if pass != "" {
-		u, p, ok := r.BasicAuth()
-		if !ok {
-			log.Println("Error parsing basic auth")
-			w.WriteHeader(401)
-			return
-		}
-		if u != user && p != pass {
-			log.Printf("Invalid username/password for %s", u)
-			w.WriteHeader(401)
-			return
-		}
-	}
 	switch r.Method {
 	case "POST":
+		if pass != "" {
+			u, p, ok := r.BasicAuth()
+			if !ok {
+				log.Println("Error parsing basic auth")
+				w.WriteHeader(401)
+				return
+			}
+			if u != user && p != pass {
+				log.Printf("Invalid username/password for %s", u)
+				w.WriteHeader(401)
+				return
+			}
+		}
 		create(w, r)
 	case "GET":
 		redirect(w, r)
