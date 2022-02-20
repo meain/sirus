@@ -313,6 +313,9 @@ func TestRedirect(t *testing.T) {
 	if loc.String() != url {
 		t.Errorf("incorrect redirect location; expected '%v', got '%v'", url, loc.String())
 	}
+	if db[code].Count != 1 {
+		t.Errorf("incorrect hit count; expected '%v', got '%v'", 1, db["domain"].Count)
+	}
 }
 
 func TestRedirectSub(t *testing.T) {
@@ -339,6 +342,9 @@ func TestRedirectSub(t *testing.T) {
 	}
 	if loc.String() != url+"/out" {
 		t.Errorf("incorrect redirect location; expected '%v', got '%v'", url+"/out", loc.String())
+	}
+	if db["g"].Count != 1 {
+		t.Errorf("incorrect hit count; expected '%v', got '%v'", 1, db["domain"].Count)
 	}
 }
 

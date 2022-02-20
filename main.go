@@ -65,7 +65,8 @@ func bumpScount(code string) {
 	}
 	persist()
 }
-func bumpCount(code string) {
+func bumpCount(path string) {
+	code := strings.Split(path, "/")[0]
 	e, ok := db[code]
 	if ok {
 		e.Count += 1
